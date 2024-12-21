@@ -154,6 +154,7 @@ public class BattleService {
         battle.getTeamOne().forEach(p -> {
             if (p.getHealth() > 0) {
                 var account = getAccountByLogin(p.getId());
+                account.setMoney(account.getMoney() + 2);
                 account.setPoints(account.getPoints() + p.getHealth());
                 if (account.getPoints() >= account.getLevel() * account.getLevel() * account.getLevel() * 100) {
                     account.setLevel(account.getLevel() + 1);
