@@ -13,6 +13,7 @@ import java.util.Set;
 @NoArgsConstructor
 public class BattleEntity {
     private String id;
+    private String playerId;
 
     private Set<PlayerEntity> teamOne;
     private Set<PlayerEntity> teamTwo;
