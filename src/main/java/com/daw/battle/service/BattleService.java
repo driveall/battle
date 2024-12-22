@@ -6,10 +6,7 @@ import com.daw.battle.entity.PlayerEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -21,6 +18,7 @@ public class BattleService {
     private final RestTemplate restTemplate = new RestTemplate();
 
     private Map<String, BattleEntity> battles = new ConcurrentHashMap<>();
+    private Map<String, BattleEntity> waitList = new ConcurrentHashMap<>();
 
     public String create(BattleEntity battle) {
         var idBuilder = new StringBuilder();
@@ -83,19 +81,79 @@ public class BattleService {
     }
 
     public BattleEntity startBattle(String login) {
-        // TODO add functionality
-        return null;
+        var existsBattle = get(login);
+        // TODO hardcore remove old unknown battles
+        if (existsBattle != null) {
+            delete(existsBattle.getId());
+            existsBattle = null;
+        }
+        if (waitList.keySet().contains(login)) {
+            waitList.remove(login);
+        }
+
+        if (!waitList.isEmpty()) {
+            var existBattleCreator = waitList.keySet().stream().findFirst().get();
+            existsBattle = waitList.remove(existBattleCreator);
+            existsBattle.setMove(1);
+            existsBattle.setStarted(true);
+
+            var account = getAccountByLogin(login);
+            var armor = calculateArmor(account);
+            var damage = calculateDamage(account);
+            var health = calculateHealth(account);
+            existsBattle.setTeamTwo(Set.of(PlayerEntity.builder()
+                            .id(account.getLogin())
+                            .armor(armor)
+                            .damage(damage)
+                            .health(health)
+                            .build()));
+            var response = create(existsBattle);
+            existsBattle = get(response);
+            existsBattle.setPlayerId(login);
+            return existsBattle;
+        } else {
+            var account = getAccountByLogin(login);
+            var armor = calculateArmor(account);
+            var damage = calculateDamage(account);
+            var health = calculateHealth(account);
+            var battle = BattleEntity.builder()
+                    .teamOne(Set.of(PlayerEntity.builder()
+                            .id(account.getLogin())
+                            .armor(armor)
+                            .damage(damage)
+                            .health(health)
+                            .build()))
+                    .build();
+            waitList.put(login, battle);
+            battle.setPlayerId(login);
+            return battle;
+        }
+    }
+
+    public void cancelBattle(String login) {
+        var existsBattle = get(login);
+        // TODO hardcore remove old unknown battles
+        if (existsBattle != null) {
+            delete(existsBattle.getId());
+            existsBattle = null;
+        }
+        if (waitList.keySet().contains(login)) {
+            waitList.remove(login);
+        }
     }
 
     public BattleEntity move(String login, String opponentId, String attack, String defence) {
         var battle = get(login);
-        if (battle != null && login != null && !login.isEmpty()) {
+        if (battle == null) {
+            if (waitList.containsKey(login)) {
+                return waitList.get(login);
+            }
+        }
+        if (battle != null && battle.isStarted() && login != null && !login.isEmpty()) {
             var players = findPlayers(battle, login, opponentId);
             var player = players.get(0);
-            var opponent = players.get(1);
-            if (attack != null && !attack.isEmpty()
-                    && defence != null && !defence.isEmpty()
-                    && opponentId != null && !opponentId.isEmpty()) {
+            if (opponentId != null && !opponentId.equals("null")) {
+                var opponent = players.get(1);
                 player.setAttack(attack);
                 player.setDefense(defence);
                 player.setOpponent(opponentId);
@@ -125,19 +183,19 @@ public class BattleService {
                         prepareNextMove(battle);
                     }
                 }
-                if (battle.isBattleFinished()) {
-                    player.setResultsViewed(true);
-                }
                 update(battle);
             }
             battle = get(login);
-
-            if (allPlayersViewedResults(battle)) {
-                payRewards(battle);
-                delete(battle.getId());
+            if (battle.isBattleFinished()) {
+                player.setResultsViewed(true);
             }
-            battle.setPlayerId(login);
         }
+        if (allPlayersViewedResults(battle)) {
+            payRewards(battle.getTeamOne());
+            payRewards(battle.getTeamTwo());
+            delete(battle.getId());
+        }
+        battle.setPlayerId(login);
         return battle;
     }
 
@@ -150,8 +208,8 @@ public class BattleService {
         restTemplate.postForEntity(API_UPDATE_URL, accountEntity, AccountEntity.class);
     }
 
-    private void payRewards(BattleEntity battle) {
-        battle.getTeamOne().forEach(p -> {
+    private void payRewards(Set<PlayerEntity> team) {
+        team.forEach(p -> {
             if (p.getHealth() > 0) {
                 var account = getAccountByLogin(p.getId());
                 account.setMoney(account.getMoney() + 2);
@@ -233,25 +291,30 @@ public class BattleService {
     }
 
     private List<PlayerEntity> findPlayers(BattleEntity battle, String login, String opponentId) {
+        var opponentIsPresent = opponentId != null && !opponentId.equals("null");
         PlayerEntity opponent = null;
-        PlayerEntity player = battle.getTeamOne().stream()
+        Optional<PlayerEntity> player = battle.getTeamOne().stream()
                 .filter(e -> e.getId().equals(login))
-                .findFirst().get();
-        if (player.getId() == null) {
+                .findFirst();
+        if (player.isEmpty()) {
             player = battle.getTeamTwo().stream()
                     .filter(e -> e.getId().equals(login))
-                    .findFirst().get();
-            opponent = battle.getTeamOne().stream()
-                    .filter(e -> e.getId().equals(opponentId))
-                    .findFirst().get();
-        } else {
+                    .findFirst();
+            if (opponentIsPresent) {
+                opponent = battle.getTeamOne().stream()
+                        .filter(e -> e.getId().equals(opponentId))
+                        .findFirst().get();
+            }
+        } else if (opponentIsPresent) {
             opponent = battle.getTeamTwo().stream()
                     .filter(e -> e.getId().equals(opponentId))
                     .findFirst().get();
         }
         var players = new LinkedList<PlayerEntity>();
-        players.add(player);
-        players.add(opponent);
+        players.add(player.get());
+        if (opponentIsPresent) {
+            players.add(opponent);
+        }
         return players;
     }
 

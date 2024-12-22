@@ -53,11 +53,15 @@ public class BattleController {
     }
 
     @PostMapping("/battle/start")
-    public BattleEntity battleStart(@RequestParam String login,
-                                    HttpServletRequest req,
-                                    HttpServletResponse res) {
+    public BattleEntity battleStart(@RequestParam String login) {
         log.info("battle start for {}", login);
         return battleService.startBattle(login);
+    }
+
+    @PostMapping("/battle/cancel")
+    public void battleCancel(@RequestParam String login) {
+        log.info("battle cancel for {}", login);
+        battleService.cancelBattle(login);
     }
 
     @PostMapping("/battle/move")
