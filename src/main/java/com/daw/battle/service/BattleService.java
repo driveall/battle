@@ -320,10 +320,10 @@ public class BattleService {
 
     private int calculateDamage(AccountEntity account) {
         int damage = 0;
-        if (account.getWeapon() != null) {
+        if (account.getWeapon() != null && account.getWeapon().getPoints() != null) {
             damage += account.getWeapon().getPoints();
         }
-        return damage;
+        return damage <= 0 ? 1 : damage;
     }
 
     private int calculateArmor(AccountEntity account) {
