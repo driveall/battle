@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Map;
 import java.util.Set;
 
 @Data
@@ -17,6 +18,7 @@ public class BattleEntity {
 
     private Set<PlayerEntity> teamOne;
     private Set<PlayerEntity> teamTwo;
+    private Map<String, Integer> moveResults;
 
     private int move = 0;
     private boolean started = false;

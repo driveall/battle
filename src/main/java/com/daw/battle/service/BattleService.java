@@ -174,8 +174,9 @@ public class BattleService {
                 }
                 // calculate
                 if (battle.isTeamOneFinish() && battle.isTeamTwoFinish()) {
-                    calculateFor(battle.getTeamOne(), battle.getTeamTwo());
-                    calculateFor(battle.getTeamTwo(), battle.getTeamOne());
+                    battle.setMoveResults(new HashMap<>());
+                    calculateFor(battle.getTeamOne(), battle.getTeamTwo(), battle.getMoveResults());
+                    calculateFor(battle.getTeamTwo(), battle.getTeamOne(), battle.getMoveResults());
                     // check battle ends or not
                     if (allTeamLost(battle.getTeamOne()) || allTeamLost(battle.getTeamTwo())) {
                         battle.setBattleFinished(true);
@@ -265,7 +266,7 @@ public class BattleService {
         return allPlayersLost.get();
     }
 
-    private void calculateFor(Set<PlayerEntity> team, Set<PlayerEntity> opponents) {
+    private void calculateFor(Set<PlayerEntity> team, Set<PlayerEntity> opponents, Map<String, Integer> moveResults) {
         team.forEach(player -> {
             var opponent = opponents.stream()
                     .filter(p -> player.getOpponent().equals(p.getId()))
@@ -276,6 +277,7 @@ public class BattleService {
                     totalDamage = 1;
                 }
                 opponent.setHealth(opponent.getHealth() - totalDamage);
+                moveResults.put(player.getId(), totalDamage);
             }
         });
     }
